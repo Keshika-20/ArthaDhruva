@@ -1,0 +1,10 @@
+{
+  "required_file": "data/docs/segment_monthly_series.parquet",
+  "required_file_present": false,
+  "graph_file": "backend/risk-engine/src/main/resources/segment_correlation_graph.json",
+  "graph_file_present": true,
+  "missing_required_data": [
+    "data/docs/segment_monthly_series.parquet"
+  ],
+  "stop_message": "The full Pearson matrix or underlying state-by-month series is unavailable in this checkout; stop before unrelated analysis."
+}
