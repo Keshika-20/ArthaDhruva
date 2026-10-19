@@ -8,6 +8,7 @@ import com.arthadhruva.riskengine.tenant.TenantContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
@@ -31,15 +32,18 @@ public class ModelGovernanceController {
     private final LoanCatalogService catalog;
     private final LoanScoreService scores;
     private final RefreshAheadCache cache;
+    private final ModelCalibrationService calibrationService;
 
     public ModelGovernanceController(ModelRegistry registry, DriftService drift, MacroDriftService macroDrift,
-                                     LoanCatalogService catalog, LoanScoreService scores, RefreshAheadCache cache) {
+                                     LoanCatalogService catalog, LoanScoreService scores, RefreshAheadCache cache,
+                                     ModelCalibrationService calibrationService) {
         this.registry = registry;
         this.drift = drift;
         this.macroDrift = macroDrift;
         this.catalog = catalog;
         this.scores = scores;
         this.cache = cache;
+        this.calibrationService = calibrationService;
     }
 
     @GetMapping("/models")
@@ -81,5 +85,33 @@ public class ModelGovernanceController {
         Long tenantId = TenantContext.get();
         return cache.get("macro-drift:" + tenantId, MacroDriftService.MacroDriftReport.class, DRIFT_CACHE_TTL,
                 () -> macroDrift.report(catalog.all().stream().map(LoanFeatures::propertyState).toList()));
+    }
+
+    /**
+     * Stored scores compared against realized outcomes (calibration) for a specific model (e.g. pd_24m).
+     * If no servicing feed is configured, explicitly reports outcomes as unavailable per Design Decision 4.
+     */
+    @GetMapping("/models/{id}/calibration")
+    public CalibrationReport calibration(@PathVariable String id) {
+        Long tenantId = TenantContext.get();
+        return calibrationService.getLatestReport(tenantId, id);
+    }
+
+    /**
+     * Stored scores compared against realized outcomes (calibration) across models.
+     */
+    @GetMapping("/models/calibration")
+    public CalibrationReport defaultCalibration() {
+        Long tenantId = TenantContext.get();
+        return calibrationService.getLatestReport(tenantId, null);
+    }
+
+    /**
+     * Triggers an on-demand calibration run for the given model.
+     */
+    @PostMapping("/models/{id}/calibration/run")
+    public CalibrationReport runCalibration(@PathVariable String id) {
+        Long tenantId = TenantContext.get();
+        return calibrationService.enqueue(tenantId, id);
     }
 }

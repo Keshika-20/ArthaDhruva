@@ -969,7 +969,23 @@ class ApiIntegrationTest extends AbstractIntegrationTest {
             assertTrue(driver.get("loansOutside").asInt() <= macro.get("loansCovered").asInt());
             assertEquals(5, driver.get("drift").get("bins").size());
         }
+
+        // Calibration endpoints (Issue #27): production / unconfigured servicing feed reports unavailable per Decision 4
+        JsonNode calib = body(call(get("/v1/models/pd_24m/calibration"), ana, null));
+        assertEquals("OUTCOMES_UNAVAILABLE", calib.get("status").asString());
+        assertFalse(calib.get("dataSourceAvailable").asBoolean());
+        assertTrue(calib.get("message").asString().contains("Design Decision 4"));
+        assertTrue(calib.get("metrics").isNull());
+        assertTrue(calib.get("deciles").isEmpty());
+
+        JsonNode defCalib = body(call(get("/v1/models/calibration"), ana, null));
+        assertEquals("OUTCOMES_UNAVAILABLE", defCalib.get("status").asString());
+
+        // Authorization: CLIENT role (borrower) must be forbidden from accessing model governance / calibration
+        String borrower = token(alpha, "borrower-calib", Role.CLIENT);
+        assertEquals(403, status(call(get("/v1/models/pd_24m/calibration"), borrower, null)));
     }
+
 
     @Test
     void listsArePagedAndForecastsBounded() throws Exception {

@@ -60,8 +60,12 @@ class DashboardConfigStoreTest extends AbstractIntegrationTest {
         String user = "dov";
         store.save(org.getId(), user, "[\"MY_OPEN_CASES\"]");
         // Another replica wrote a later save first.
-        inTenant(org, () -> jdbc.update("INSERT INTO dashboard_config (tenant_id, username, widgets, updated_at) "
-                + "VALUES (?, ?, '[\"FLAGGED_CASES\"]', now() + interval '1 minute')", org.getId(), user));
+        inTenant(org, () -> jdbc.update(
+                "INSERT INTO dashboard_config (tenant_id, username, widgets, updated_at) "
+                        + "VALUES (?, ?, '[\"FLAGGED_CASES\"]', now() + interval '1 minute') "
+                        + "ON CONFLICT (tenant_id, username) DO UPDATE "
+                        + "SET widgets = EXCLUDED.widgets, updated_at = EXCLUDED.updated_at",
+                org.getId(), user));
 
         store.flush();
         assertEquals(List.of("[\"FLAGGED_CASES\"]"), stored(org, user));

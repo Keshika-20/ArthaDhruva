@@ -1,0 +1,82 @@
+[
+  {
+    "loanId": "F21Q11429043",
+    "type": "DEFAULT",
+    "defaulted": true,
+    "prepaid": false,
+    "observedAt": "2026-03-01T00:00:00Z",
+    "eventDate": "2025-11-15T00:00:00Z"
+  },
+  {
+    "loanId": "F21Q40441280",
+    "type": "PREPAYMENT",
+    "defaulted": false,
+    "prepaid": true,
+    "observedAt": "2026-04-01T00:00:00Z",
+    "eventDate": "2026-02-10T00:00:00Z"
+  },
+  {
+    "loanId": "F21Q10000001",
+    "type": "ACTIVE_PERFORMING",
+    "defaulted": false,
+    "prepaid": false,
+    "observedAt": "2026-05-01T00:00:00Z",
+    "eventDate": null
+  },
+  {
+    "loanId": "F21Q10000002",
+    "type": "DEFAULT",
+    "defaulted": true,
+    "prepaid": false,
+    "observedAt": "2026-06-01T00:00:00Z",
+    "eventDate": "2026-01-20T00:00:00Z"
+  },
+  {
+    "loanId": "F21Q10000003",
+    "type": "ACTIVE_PERFORMING",
+    "defaulted": false,
+    "prepaid": false,
+    "observedAt": "2026-06-01T00:00:00Z",
+    "eventDate": null
+  },
+  {
+    "loanId": "F21Q10000004",
+    "type": "PREPAYMENT",
+    "defaulted": false,
+    "prepaid": true,
+    "observedAt": "2026-06-01T00:00:00Z",
+    "eventDate": "2025-09-12T00:00:00Z"
+  },
+  {
+    "loanId": "F21Q10000005",
+    "type": "ACTIVE_PERFORMING",
+    "defaulted": false,
+    "prepaid": false,
+    "observedAt": "2026-06-01T00:00:00Z",
+    "eventDate": null
+  },
+  {
+    "loanId": "F21Q10000006",
+    "type": "DEFAULT",
+    "defaulted": true,
+    "prepaid": false,
+    "observedAt": "2026-07-01T00:00:00Z",
+    "eventDate": "2026-05-05T00:00:00Z"
+  },
+  {
+    "loanId": "F21Q10000007",
+    "type": "ACTIVE_PERFORMING",
+    "defaulted": false,
+    "prepaid": false,
+    "observedAt": "2026-07-01T00:00:00Z",
+    "eventDate": null
+  },
+  {
+    "loanId": "F21Q10000008",
+    "type": "ACTIVE_PERFORMING",
+    "defaulted": false,
+    "prepaid": false,
+    "observedAt": "2026-07-01T00:00:00Z",
+    "eventDate": null
+  }
+]
