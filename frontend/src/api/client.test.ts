@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activateAccount, ApiError, getLoan, getPortfolioRun, listModels, listScenarios, regimeForecast, score, signOut, startPortfolioRun, totpConfirmWithToken, totpSetupWithToken, unreadNotificationCount, uploadAttachment } from './client';
+import { activateAccount, ApiError, getLoan, getPortfolioRun, listModels, listScenarios, modelCalibration, regimeForecast, score, signOut, startPortfolioRun, totpConfirmWithToken, totpSetupWithToken, triggerModelCalibration, unreadNotificationCount, uploadAttachment } from './client';
 import { DEFAULT_LOAN } from '../components/loanDefaults';
 
 const STORAGE_KEY = 'arthadhruva-auth';
@@ -203,5 +203,32 @@ describe('errors', () => {
   it('reads a loan that does not exist as null, not as a failure', async () => {
     fetchMock.mockImplementation(async () => json({ error: 'Not found' }, 404));
     expect(await getLoan('NOPE')).toBeNull();
+  });
+});
+
+describe('model calibration endpoints', () => {
+  beforeEach(() => signIn(5_000));
+
+  it('requests model calibration for default and specific model IDs', async () => {
+    const report = {
+      id: 'calib-1',
+      status: 'OUTCOMES_UNAVAILABLE',
+      dataSource: 'unconfigured',
+      dataSourceAvailable: false,
+      message: 'Servicing feed not configured',
+      sampleCounts: { totalScored: 10, evaluated: 0, missingOutcomes: 0, defaults: 0, prepayments: 0 },
+      metrics: null,
+      deciles: [],
+    };
+    fetchMock.mockImplementation(async () => json(report));
+
+    const res1 = await modelCalibration('pd_24m');
+    expect(res1).toEqual(report);
+    expect(calls()[0].url).toContain('/models/pd_24m/calibration');
+
+    const res2 = await triggerModelCalibration('pd_24m');
+    expect(res2).toEqual(report);
+    expect(calls()[1].url).toContain('/models/pd_24m/calibration/run');
+    expect(calls()[1].method).toBe('POST');
   });
 });

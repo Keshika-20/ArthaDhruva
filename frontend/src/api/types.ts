@@ -596,6 +596,55 @@ export interface DriftReport {
   computedAt: string;
 }
 
+export interface CalibrationSampleCounts {
+  totalScored: number;
+  evaluated: number;
+  missingOutcomes: number;
+  defaults: number;
+  prepayments: number;
+}
+
+export interface CalibrationMetrics {
+  meanPredictedProbability: number;
+  observedDefaultRate: number;
+  observedPrepayRate: number;
+  calibrationRatio: number | null;
+  brierScore: number | null;
+  auc: number | null;
+  ks: number | null;
+  hosmerLemeshow: number | null;
+}
+
+export interface CalibrationDecile {
+  bin: number;
+  pdFrom: number;
+  pdTo: number;
+  sampleCount: number;
+  meanPredicted: number;
+  observedRate: number;
+  defaultCount: number;
+  prepayCount: number;
+}
+
+export interface CalibrationReport {
+  id: string;
+  tenantId: number;
+  modelVersion: string;
+  status: 'OUTCOMES_UNAVAILABLE' | 'COMPLETED' | 'QUEUED' | 'RUNNING' | 'FAILED' | 'NO_SCORES';
+  dataSource: string;
+  dataSourceAvailable: boolean;
+  message: string;
+  evaluationWindow: { start: string | null; end: string | null } | null;
+  sampleCounts: CalibrationSampleCounts;
+  metrics: CalibrationMetrics | null;
+  deciles: CalibrationDecile[];
+  queuedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  failureReason: string | null;
+}
+
+
 /** The survival model's macro drivers today against its training window (GET /models/survival/drift). */
 export interface MacroDriver {
   feature: 'unemployment' | 'unemployment_change_12m' | 'hpi_change_12m';

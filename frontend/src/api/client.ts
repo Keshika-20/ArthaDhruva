@@ -14,6 +14,7 @@ import type {
   DashboardConfig,
   DeliveryMode,
   DriftReport,
+  CalibrationReport,
   MacroDriftReport,
   LifetimeRiskInput,
   LoanResultPage,
@@ -410,6 +411,15 @@ export function pdDrift(): Promise<DriftReport> {
 export function survivalDrift(): Promise<MacroDriftReport> {
   return request('/models/survival/drift');
 }
+
+export function modelCalibration(modelId = 'pd_24m'): Promise<CalibrationReport> {
+  return request(`/models/${encodeURIComponent(modelId)}/calibration`);
+}
+
+export function triggerModelCalibration(modelId = 'pd_24m'): Promise<CalibrationReport> {
+  return request(`/models/${encodeURIComponent(modelId)}/calibration/run`, { method: 'POST' });
+}
+
 
 // ---- portfolio and catalog -------------------------------------------------------------------
 

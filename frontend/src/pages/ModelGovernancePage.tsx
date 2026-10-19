@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { listModels, modelCard, pdDrift, survivalBacktest, survivalDrift } from '../api/client';
+import { listModels, modelCalibration, modelCard, pdDrift, survivalBacktest, survivalDrift, triggerModelCalibration } from '../api/client';
 import ErrorBanner from '../components/ErrorBanner';
 import { AXIS, GRID, LEGEND, TOOLTIP, yearOf, yearTicks } from '../components/chartTheme';
 import { count, dateTime, monthLabel, pct } from '../format';
 import { featureLabel } from '../labels';
-import type { FeatureDrift, MacroDriver, ModelCard, ModelEntry, OverlayCause, OverlayTrial, PdCard, SurvivalBacktest, SurvivalCard } from '../api/types';
+import type { CalibrationReport, FeatureDrift, MacroDriver, ModelCard, ModelEntry, OverlayCause, OverlayTrial, PdCard, SurvivalBacktest, SurvivalCard } from '../api/types';
 
 const HEADLINE: Record<string, string> = {
   outOfTimeAuc: 'Out-of-time AUC',
@@ -553,6 +553,207 @@ function MacroDrift() {
   );
 }
 
+const CALIB_STATUS_BADGE: Record<CalibrationReport['status'], string> = {
+  OUTCOMES_UNAVAILABLE: 'badge-medium',
+  COMPLETED: 'badge-low',
+  QUEUED: 'badge-medium',
+  RUNNING: 'badge-medium',
+  FAILED: 'badge-high',
+  NO_SCORES: '',
+};
+
+const CALIB_STATUS_LABEL: Record<CalibrationReport['status'], string> = {
+  OUTCOMES_UNAVAILABLE: 'Outcomes unavailable',
+  COMPLETED: 'Calibrated',
+  QUEUED: 'Queued',
+  RUNNING: 'Evaluating',
+  FAILED: 'Failed',
+  NO_SCORES: 'No scores',
+};
+
+function ScoreOutcomeCalibration({ modelId }: { modelId: string }) {
+  const queryClient = useQueryClient();
+  const calib = useQuery({
+    queryKey: ['model-calibration', modelId],
+    queryFn: () => modelCalibration(modelId),
+  });
+
+  const runMutation = useMutation({
+    mutationFn: () => triggerModelCalibration(modelId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['model-calibration', modelId], data);
+    },
+  });
+
+  if (calib.isPending) return <div className="card"><div className="skeleton" style={{ height: 160 }} /></div>;
+  if (!calib.data) return <ErrorBanner error={calib.error} />;
+
+  const r = calib.data;
+  const unavailable = !r.dataSourceAvailable || r.status === 'OUTCOMES_UNAVAILABLE';
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <h3>Stored scores vs. realized outcomes (Calibration)</h3>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <span className={`badge ${CALIB_STATUS_BADGE[r.status]}`}>{CALIB_STATUS_LABEL[r.status]}</span>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => runMutation.mutate()}
+            disabled={runMutation.isPending}
+            style={{ fontSize: '0.8rem', padding: '0.2rem 0.6rem' }}
+          >
+            {runMutation.isPending ? 'Queuing…' : 'Re-check'}
+          </button>
+        </div>
+      </div>
+
+      <p className="page-subtitle">{r.message}</p>
+
+      {unavailable && (
+        <div style={{ background: 'var(--surface-sunken, #f8f9fa)', borderLeft: '3px solid var(--accent, #3b82f6)', padding: '0.75rem 1rem', margin: '0.75rem 0', borderRadius: '4px', fontSize: '0.9rem' }}>
+          <strong>Design Decision 4:</strong> This deployment has no external servicing feed configured. Realized default and prepayment outcomes are explicitly reported as unavailable. Realized outcomes are never fabricated or silently simulated in production. Scheduled background jobs track source availability and will compute calibration metrics automatically once genuine outcomes are provisioned.
+        </div>
+      )}
+
+      <div className="result-grid" style={{ marginTop: '0.75rem' }}>
+        <div className="stat">
+          <div className="label">Data source</div>
+          <div className="value" style={{ fontSize: '1.1rem' }}>{r.dataSource}</div>
+          <div className="sub">{r.dataSourceAvailable ? 'Feed active' : 'Feed unconfigured'}</div>
+        </div>
+        <div className="stat">
+          <div className="label">Model version</div>
+          <div className="value mono" style={{ fontSize: '1.0rem' }}>{r.modelVersion}</div>
+          <div className="sub">Target model</div>
+        </div>
+        <div className="stat">
+          <div className="label">Evaluation window</div>
+          <div className="value" style={{ fontSize: '0.95rem' }}>
+            {r.evaluationWindow?.start ? `${dateTime(r.evaluationWindow.start).split(' ')[0]} to ${dateTime(r.evaluationWindow.end ?? '').split(' ')[0]}` : 'None'}
+          </div>
+          <div className="sub">Loan scoring dates</div>
+        </div>
+        <div className="stat">
+          <div className="label">Sample counts</div>
+          <div className="value" style={{ fontSize: '1.2rem' }}>
+            {count(r.sampleCounts.evaluated)} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>/ {count(r.sampleCounts.totalScored)}</span>
+          </div>
+          <div className="sub">{r.sampleCounts.missingOutcomes > 0 ? `${count(r.sampleCounts.missingOutcomes)} missing outcomes` : 'Evaluated loans'}</div>
+        </div>
+      </div>
+
+      {r.metrics && (
+        <>
+          <div className="section-label" style={{ marginTop: '1.25rem' }}>Calibration & discrimination metrics</div>
+          <div className="result-grid" style={{ marginTop: 0 }}>
+            <div className="stat">
+              <div className="label">Observed default rate</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{pct(r.metrics.observedDefaultRate)}</div>
+              <div className="sub">{count(r.sampleCounts.defaults)} defaults</div>
+            </div>
+            <div className="stat">
+              <div className="label">Mean predicted PD</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{pct(r.metrics.meanPredictedProbability)}</div>
+              <div className="sub">Calibrated score mean</div>
+            </div>
+            <div className="stat">
+              <div className="label">Observed prepay rate</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{pct(r.metrics.observedPrepayRate)}</div>
+              <div className="sub">{count(r.sampleCounts.prepayments)} prepayments</div>
+            </div>
+            <div className="stat">
+              <div className="label">Calibration ratio (E/O)</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{r.metrics.calibrationRatio != null ? r.metrics.calibrationRatio.toFixed(3) : 'N/A'}</div>
+              <div className="sub">Mean predicted / actual</div>
+            </div>
+            <div className="stat">
+              <div className="label">Brier score</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{r.metrics.brierScore != null ? r.metrics.brierScore.toFixed(4) : 'N/A'}</div>
+              <div className="sub">Mean squared error</div>
+            </div>
+            <div className="stat">
+              <div className="label">Discrimination (AUC)</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{r.metrics.auc != null ? r.metrics.auc.toFixed(3) : 'N/A'}</div>
+              <div className="sub">ROC c-statistic</div>
+            </div>
+            <div className="stat">
+              <div className="label">KS statistic</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{r.metrics.ks != null ? r.metrics.ks.toFixed(3) : 'N/A'}</div>
+              <div className="sub">Max default/non-default sep</div>
+            </div>
+            <div className="stat">
+              <div className="label">Hosmer-Lemeshow</div>
+              <div className="value" style={{ fontSize: '1.3rem' }}>{r.metrics.hosmerLemeshow != null ? r.metrics.hosmerLemeshow.toFixed(2) : 'N/A'}</div>
+              <div className="sub">Goodness-of-fit chi-sq</div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {r.deciles && r.deciles.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: '1.25rem' }}>Decile calibration (Predicted PD vs Realized Default Rate)</div>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Bin</th>
+                  <th className="num">Predicted PD Range</th>
+                  <th className="num">Mean Predicted PD</th>
+                  <th className="num">Realized Default Rate</th>
+                  <th className="num">Defaults</th>
+                  <th className="num">Prepays</th>
+                  <th className="num">Loans in Bin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.deciles.map((d) => (
+                  <tr key={d.bin}>
+                    <td>Decile {d.bin}</td>
+                    <td className="num">{pct(d.pdFrom)} to {pct(d.pdTo)}</td>
+                    <td className="num">{pct(d.meanPredicted)}</td>
+                    <td className="num"><b>{pct(d.observedRate)}</b></td>
+                    <td className="num">{count(d.defaultCount)}</td>
+                    <td className="num">{count(d.prepayCount)}</td>
+                    <td className="num">{count(d.sampleCount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: '1.25rem' }}>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart
+                data={r.deciles.map((d) => ({
+                  bin: `D${d.bin}`,
+                  'Mean Predicted': +(d.meanPredicted * 100).toFixed(2),
+                  'Observed Actual': +(d.observedRate * 100).toFixed(2),
+                }))}
+                margin={{ top: 8, right: 12, bottom: 0, left: -8 }}
+              >
+                <CartesianGrid {...GRID} />
+                <XAxis dataKey="bin" {...AXIS} />
+                <YAxis unit="%" {...AXIS} />
+                <Tooltip {...TOOLTIP} formatter={(v, name) => [`${Number(v).toFixed(2)}%`, String(name)]} />
+                <Legend {...LEGEND} />
+                <Bar dataKey="Mean Predicted" fill="var(--chart-1, #3b82f6)" />
+                <Bar dataKey="Observed Actual" fill="var(--chart-2, #ef4444)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+
+      <p className="chart-caption">
+        Report ID {r.id ? r.id.slice(0, 8) : 'none'} · Source: {r.dataSource} ({r.dataSourceAvailable ? 'active' : 'unavailable'}) · {r.finishedAt ? `Evaluated ${dateTime(r.finishedAt)}` : 'No evaluation'}.
+      </p>
+    </div>
+  );
+}
+
 export default function ModelGovernancePage() {
   const models = useQuery({ queryKey: ['models'], queryFn: listModels });
   const [selected, setSelected] = useState('survival');
@@ -579,6 +780,7 @@ export default function ModelGovernancePage() {
       {selected === 'survival' && <MacroDrift />}
       {selected === 'pd_24m' && card.data && <PdEvidence card={card.data as PdCard} />}
       {selected === 'pd_24m' && <Drift />}
+      <ScoreOutcomeCalibration modelId={selected} />
     </div>
   );
 }
